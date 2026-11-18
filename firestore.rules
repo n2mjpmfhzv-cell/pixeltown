@@ -1,0 +1,38 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 邀請碼：想改就改呢一行，再撳「發布」。舊居民唔使重新輸入。
+    function inviteCode() { return "TOWN-GX7PC"; }
+
+    function signedIn() { return request.auth != null; }
+    function isMe(uid) { return signedIn() && request.auth.uid == uid; }
+    function member() {
+      return signedIn() && exists(/databases/$(database)/documents/members/$(request.auth.uid));
+    }
+
+    // 輸入啱邀請碼就會喺度登記做居民
+    match /members/{uid} {
+      allow read: if isMe(uid);
+      allow create: if isMe(uid) && request.resource.data.code == inviteCode();
+    }
+
+    // 角色資料：所有居民睇到，每人只可以改自己
+    match /residents/{uid} {
+      allow read: if member();
+      allow write: if member() && isMe(uid);
+    }
+
+    // 邊個喺線、行到邊
+    match /presence/{uid} {
+      allow read: if member();
+      allow write: if member() && isMe(uid);
+    }
+
+    // 煙花同揮手
+    match /events/{id} {
+      allow read: if member();
+      allow create: if member() && request.resource.data.from == request.auth.uid;
+    }
+  }
+}
